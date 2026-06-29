@@ -1,0 +1,25 @@
+{
+  "pointer": {
+    "nonNullSyntax": true,
+    "nonNullRuntimeAssert": true,
+    "nullableSyntax": false
+  },
+  "string": {
+    "ops": "glib",
+    "allocationPolicy": "glib"
+  },
+  "async": {
+    "async": true,
+    "await": true,
+    "multiFunctionSplit": true,
+    "switchBasedStateMachine": false,
+    "markedContextVars": true,
+    "tryCatch": false,
+    "tryCatchFinally": true,
+    "tryCatchElse": false,
+    "exceptionBubbling": false,
+    "unhandledRejectionCrash": false,
+    "appleBlocks": false,
+    "backend": "heapless"
+  }
+}

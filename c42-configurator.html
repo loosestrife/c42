@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>: C42 Configuration :.</title>
+    <style>
+      body { max-width: 800px; margin: 1rem auto; line-height: 1.5; }
+      textarea { width: 100%; height: 150px; font-family: monospace; margin-top: 0.5rem; }
+      .form-group { margin-bottom: 1rem; }
+      label { display: inline-block; margin-right: 1rem; }
+    </style>
+    <script>
+const generateButtonClicked = () => {
+  console.log("compileButtonClicked");
+  const transpilerOptions = {
+    pointer: {
+      nonNullSyntax: false,
+      nonNullRuntimeAssert: false,
+      nullableSyntax: false,
+    },
+    string: {
+      ops: false,
+      allocationPolicy: false, 
+    },
+    async: {
+      async: false,
+      await: false,
+      multiFunctionSplit: true,
+      switchBasedStateMachine: false,
+      markedContextVars: false,
+      tryCatch: false,
+      tryCatchFinally: false,
+      tryCatchElse: false,
+      exceptionBubbling: false,
+      unhandledRejectionCrash: false,
+      appleBlocks: false,
+      backend: false,
+    },
+  };
+  
+  const getInputValue = (elt) => {
+    if(elt.tagName === 'INPUT' && (elt.type === 'checkbox' || elt.type === 'radio')){
+      return elt.checked;
+    }
+    return elt.value;
+  };
+  
+  const getTransOptions = (myTransOptions, prefix="") => {
+    for(const key in myTransOptions){
+      const myTransOption = [prefix, key].filter(Boolean).join(".");
+      if(typeof(myTransOptions[key]) === "object"){
+        getTransOptions(myTransOptions[key], key);
+      } else {
+        const elt = document.getElementsByName(myTransOption)[0];
+        if (elt) {
+          myTransOptions[key] = getInputValue(elt);
+        }
+      }
+    }
+  };
+  
+  getTransOptions(transpilerOptions);
+  document.getElementById("c42.json").value = JSON.stringify(transpilerOptions, null, 2);
+  
+  const optionsH = [...document.getElementById("theForm").getElementsByTagName("textarea")]
+    .filter(elt => elt.value)
+    .map(elt => `//${elt.name}\n${elt.value}`)
+    .join("\n");
+    
+  if(optionsH){
+    document.getElementById("options.h").value = optionsH;
+  }
+};
+
+window.onload = () => {
+  document.getElementById("generateButton").onclick = generateButtonClicked;
+};
+    </script>
+  </head>
+  <body>
+    <form id="theForm">
+      <h1>C42 Configurator</h1>
+      
+      <h2>Pointer Policy</h2>
+      <div class="form-group">
+        <label><input type="checkbox" name="pointer.nonNullSyntax"> non null *! syntax</label>
+        <label><input type="checkbox" name="pointer.nonNullRuntimeAssert"> runtime assert when nullable pointer is saved to non nullable slot</label><br>
+        <label><input type="checkbox" name="pointer.nullableSyntax"> nullable *? syntax</label>
+      </div>
+
+      <h2>String Policy</h2>
+      <div class="form-group">
+        <label><input type="checkbox" name="string.threadLocalPolicy"> locale-style thread local string policy</label>
+      </div>
+      <div class="form-group">
+        <label>String Allocation Policy
+          <select name="string.allocationPolicy">
+            <option value="malloc">malloc</option>
+            <option value="glib">Glib Strings</option>
+            <option value="arena">arena allocated</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-group">
+        <label>String Ops
+          <select name="string.ops">
+            <option value="glib">Glib</option>
+            <option value="js">JavaScript</option>
+            <option value="java">Java</option>
+          </select>
+        </label>
+      </div>
+
+      <h2>State Machine Policy</h2>
+      <div class="form-group">
+        <label><input type="checkbox" name="async.await"> await syntax</label>
+        <label><input type="checkbox" name="async.async"> mark functions async</label>
+        <label><input type="checkbox" name="async.multiFunctionSplit" checked> Split functions at await points (foo_start, foo_after_await) for better GDB stack traces</label>
+        <label><input type="checkbox" name="async.switchBasedStateMachine"> Use a single function with a switch(state) to minimize function coloring</label>
+        <label><input type="checkbox" name="async.markedContextVars"> mark context vars with _context</label>
+      </div>
+      <div class="form-group">
+        <textarea name="async.structSuspendContext" placeholder="your struct SuspendContext layout here"></textarea>
+        <label><input type="checkbox" name="async.externSuspendContextSize"> emit extern size_t SuspendContextFooSize for manual SuspendContext allocation</label>
+      </div>
+      <div class="form-group">
+        <textarea name="async.structPromise" placeholder="your struct Promise layout here"></textarea>
+        <textarea name="async.promise_resolve" placeholder="your promise_resolve function here"></textarea>
+        <textarea name="async.promise_reject" placeholder="your promise_reject function here"></textarea>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="async.tryCatch"> try/catch syntax</label>
+        <label><input type="checkbox" name="async.tryCatchFinally"> try/catch/finally syntax</label>
+        <label><input type="checkbox" name="async.tryCatchElse"> try/catch/else syntax</label>
+        <label><input type="checkbox" name="async.exceptionBubbling"> attempt to bubble rejects to the first try-await-catch above the current await</label>
+        <label><input type="checkbox" name="async.unhandledRejectionCrash"> crash on unhandled rejection</label>
+      </div>
+      <div class="form-group">
+        <textarea name="async.onUnhandledRejection" placeholder="your promise_onUnhandledRejection function here"></textarea>
+      </div>
+      <div class="form-group">
+        <label><input type="checkbox" name="async.appleBlocks"> ^{} block closures</label>
+      </div>
+      <div class="form-group">
+        <label>Async State Machine Backend
+          <select name="async.backend">
+            <option value="heapless">heapless</option>
+            <option value="glib">Glib</option>
+            <option value="libuv">libuv</option>
+            <option value="libblocks">libblocks</option>
+          </select>
+        </label>
+      </div>
+    </form>
+    
+    <button id="generateButton">Generate!</button>
+    
+    <p>c42.json
+      <textarea id="c42.json" placeholder="to be generated"></textarea>
+    </p>
+    <p>options.h
+      <textarea id="options.h" placeholder="to be generated"></textarea>
+    </p>
+
+    <h1>How to use</h1>
+    <ul>
+      <li>copy c42.json, options.h to your project and npm install c42</li>
+      <li>npx c42trans --options c42.json --options-h options.h file.c -o file-transpiled.c</li>
+      <li>extend the transpiler to support your favorite construct, try to do it by injecting --extensions my-extensions.js, send me a pr so everyone can use it!</li>
+      <li>maybe rename your files .c42, then extend the clangd language server to read c42.json to know how to parse your projects .c42 files</li>
+    </ul>
+    <p><i>The ISO C committee is more likely to standardize features that are widely used, so make sure your feature is widely used!</i></p>
+    
+    <h1>Why?</h1>
+    <ul>
+      <li>It is largely a historical accident that relational algebra led to SQL and subsequently every query language has been mostly SQL</li>
+      <li>In the early 90's, before everyone had a network of a cell phone and a laptop which were recursively a network of cores, the academics came up with a "state transitional algebra" which was then implemented in haskell, c#, vala, nim, go, vlang, rust, odin, zig, swift,</li>
+      <li>Function coloring is inevitable, but feel free to make your own state machine with your own runtime and function coloring like youre already doing, and send me a patch to glue your system to all the others.</li>
+      <li>C needs a babel stage between everyone knowing what the syntax should be and the winning version being ISO C42. That babel stage is C42.</li>
+    </ul>
+  </body>
+</html>
