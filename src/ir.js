@@ -132,6 +132,14 @@ class IrNode {
     return this.children.map(c => c.serialize()).join('');
   }
 
+  toJson() {
+    if (this.text !== null) return this.text;
+    return {
+      type: this.type,
+      children: this.children.map(c => c.toJson())
+    };
+  }
+
   // -------------------------------------------------------------------------
   // Internal
   // -------------------------------------------------------------------------
@@ -297,6 +305,10 @@ class Document {
   // Serialize the whole document back to source.
   serialize() {
     return this.root.serialize();
+  }
+
+  toJson() {
+    return this.root.toJson();
   }
 
   // Build a Document from a tree-sitter tree + source string.
