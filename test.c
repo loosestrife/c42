@@ -82,7 +82,7 @@ void callbacker_read(char*! path, void*! buf, size_t bufSz, size_t offset, (*cal
    * _context puts it in SuspendContext_callbacker_read
    * there are three colors of function in c42, vanilla, chocolate (async)
    * and twist (vanilla with a closure).  with() is used to give chocolate
-   * and twist functions storage space, by injecting that space into a thread
+   * and twist functions storage space, by injecting that space into the magic
    * local variable CURRENT_SUSPEND_CONTEXT.  so if callbacker_read was called
    * without a with, being a twist function, it doesnt actually need a
    * SuspendContext.  But its closures need their ClosureStorage's, so it has
