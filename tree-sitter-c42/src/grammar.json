@@ -2086,6 +2086,10 @@
                 {
                   "type": "STRING",
                   "value": "+"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_await_keyword"
                 }
               ]
             }
@@ -4789,6 +4793,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "closure_type_specifier"
+        },
+        {
+          "type": "SYMBOL",
           "name": "macro_type_specifier"
         },
         {
@@ -6974,6 +6982,17 @@
         ]
       }
     },
+    "_await_keyword": {
+      "type": "TOKEN",
+      "content": {
+        "type": "PREC",
+        "value": 2,
+        "content": {
+          "type": "STRING",
+          "value": "await"
+        }
+      }
+    },
     "unary_expression": {
       "type": "PREC_LEFT",
       "value": 14,
@@ -7001,6 +7020,10 @@
                 {
                   "type": "STRING",
                   "value": "+"
+                },
+                {
+                  "type": "SYMBOL",
+                  "name": "_await_keyword"
                 }
               ]
             }
@@ -9793,7 +9816,7 @@
       }
     },
     "closure_expression": {
-      "type": "PREC",
+      "type": "PREC_RIGHT",
       "value": 17,
       "content": {
         "type": "SEQ",
@@ -9904,6 +9927,43 @@
             "content": {
               "type": "SYMBOL",
               "name": "compound_statement"
+            }
+          },
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "FIELD",
+                "name": "catch",
+                "content": {
+                  "type": "SYMBOL",
+                  "name": "catch_clause"
+                }
+              },
+              {
+                "type": "BLANK"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "closure_type_specifier": {
+      "type": "PREC_DYNAMIC",
+      "value": 2,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "STRING",
+            "value": "^"
+          },
+          {
+            "type": "FIELD",
+            "name": "parameters",
+            "content": {
+              "type": "SYMBOL",
+              "name": "parameter_list"
             }
           }
         ]
@@ -10068,6 +10128,14 @@
     ],
     [
       "closure_expression"
+    ],
+    [
+      "closure_expression",
+      "closure_type_specifier"
+    ],
+    [
+      "type_specifier",
+      "closure_type_specifier"
     ]
   ],
   "precedences": [],

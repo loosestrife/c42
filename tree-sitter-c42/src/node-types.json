@@ -312,6 +312,10 @@
     "named": true,
     "subtypes": [
       {
+        "type": "closure_type_specifier",
+        "named": true
+      },
+      {
         "type": "enum_specifier",
         "named": true
       },
@@ -1111,6 +1115,16 @@
           }
         ]
       },
+      "catch": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "catch_clause",
+            "named": true
+          }
+        ]
+      },
       "name": {
         "multiple": false,
         "required": false,
@@ -1137,6 +1151,22 @@
         "types": [
           {
             "type": "expression",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "closure_type_specifier",
+    "named": true,
+    "fields": {
+      "parameters": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "parameter_list",
             "named": true
           }
         ]
@@ -3987,6 +4017,10 @@
             "named": false
           },
           {
+            "type": "await",
+            "named": false
+          },
+          {
             "type": "~",
             "named": false
           }
@@ -4535,6 +4569,10 @@
   },
   {
     "type": "auto",
+    "named": false
+  },
+  {
+    "type": "await",
     "named": false
   },
   {

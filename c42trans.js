@@ -15,12 +15,13 @@ const tree = parser.parse(source);
 
 const ir = require('./src/ir');
 const document = ir.Document.fromTreeSitter(tree, source);
-fs.writeFileSync('test.ast', JSON.stringify(document.toJson(), null, 2));
+//fs.writeFileSync('test.ast', JSON.stringify(document.toJson(), null, 2));
+fs.writeFileSync('test.ast', document.root.toDebugOutline());
 const irDemo = require('./src/ir-demo');
 irDemo(document, source);
 
 const { extractPromiseGraph } = require('./src/promise-graph');
-const graph = extractPromiseGraph(document);
+const graph = extractPromiseGraph(document, c42Opts.visualization);
 fs.writeFileSync('test.dot', graph);
 
 /*

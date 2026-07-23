@@ -54,6 +54,8 @@ module.exports = grammar({
     [$.type_specifier, $._top_level_expression_statement],
     [$.type_qualifier, $.extension_expression],
     [$.closure_expression],
+    [$.closure_expression, $.closure_type_specifier],
+    [$.type_specifier, $.closure_type_specifier],
   ],
 
   extras: $ => [
@@ -189,7 +191,7 @@ module.exports = grammar({
     ),
 
     preproc_unary_expression: $ => prec.left(PREC.UNARY, seq(
-      field('operator', choice('!', '~', '-', '+')),
+      field('operator', choice('!', '~', '-', '+', $._await_keyword)), //c42 extension: await is a unary operator acting on promises
       field('argument', $._preproc_expression),
     )),
 
@@ -594,6 +596,7 @@ module.exports = grammar({
       $.struct_specifier,
       $.union_specifier,
       $.enum_specifier,
+      $.closure_type_specifier,
       $.macro_type_specifier,
       $.sized_type_specifier,
       $.primitive_type,
@@ -1033,8 +1036,21 @@ module.exports = grammar({
       field('argument', $.expression),
     )),
 
+    // c42 extension: 'await' is given explicit *token* precedence so the
+    // lexer always produces the dedicated keyword token for the text
+    // "await", never a generic `identifier` token. Without this, "await"
+    // is lexically indistinguishable from any other identifier, and since
+    // this grammar has no semantic typedef-tracking, a bare identifier is
+    // *always* a syntactically valid type_identifier -- so `await foo();`
+    // was ambiguous between "expression statement containing a unary
+    // await" and "declaration of a function named foo returning type
+    // await", and the parser was picking the latter (see the `declaration`
+    // / `type_identifier: await` nodes in test.ast for PROMISE_RACE,
+    // CLOSURE_CANCEL, and promise_timeout awaits).
+    _await_keyword: _ => token(prec(2, 'await')),
+
     unary_expression: $ => prec.left(PREC.UNARY, seq(
-      field('operator', choice('!', '~', '-', '+')),
+      field('operator', choice('!', '~', '-', '+', $._await_keyword)),
       field('argument', $.expression),
     )),
 
@@ -1383,7 +1399,18 @@ module.exports = grammar({
       field('body', choice($.statement, $.declaration)) // Supports single line statement, { blocks }, or variable declarations!
     )),
 
-    closure_expression: $ => prec(PREC.CALL+2, seq(
+    // c42 extension: prec.right (not plain prec) so that when a closure is
+    // immediately followed by `catch (e) { ... }`, the parser greedily
+    // extends the closure_expression to consume it via the optional
+    // `catch` field below, instead of reducing early right after `block`
+    // and leaving a dangling `catch (e) { ... }` for something else to
+    // (fail to) parse. try_statement already does this correctly with
+    // prec.right for its own (non-optional) catch; closure_expression's
+    // optional catch needs the same bias. Without this, `promise_then(&p,
+    // ^{ ... } catch (e) { ... })` parses the closure without its catch,
+    // and `catch (e) { ... }` shows up as a stray ERROR node instead of
+    // being the closure's `catch` field.
+    closure_expression: $ => prec.right(PREC.CALL+2, seq(
       optional(seq(
         'with',
         '(',
@@ -1397,6 +1424,28 @@ module.exports = grammar({
       ),
       optional(field('params', $.parameter_list)),
       field('block', $.compound_statement),
+      optional(field('catch', $.catch_clause)), // <--- Add this line
+    )),
+
+    // c42 extension: a closure type, e.g. `^() cancel_handle` or
+    // `^(int, char*) on_done`. Unlike a pointer (`int *p`, where `*`
+    // modifies a *pre-existing* base type), `^(...)` has no base type to
+    // modify -- it *is* the whole type -- so it's added to `type_specifier`
+    // itself rather than to the `_declarator` family. The ordinary
+    // `_declarator` machinery (plain identifier, pointer-to-closure,
+    // array-of-closures, ...) then applies after it exactly like it does
+    // after `int` or `struct Foo`. Previously there was no rule for this
+    // at all, so e.g. `^() cancel_handle = callbacker_read(...);` fell
+    // into ERROR recovery and corrupted everything else on that statement
+    // (see test.ast around the `with(callbacker_read_context)` block).
+    // prec.dynamic biases resolution of a leading `^` toward this rule vs.
+    // closure_expression when both are momentarily viable (e.g. right
+    // after `with(x)`); the two are disambiguated for real by lookahead,
+    // since closure_expression always requires a trailing `{`
+    // compound_statement block and this rule never has one.
+    closure_type_specifier: $ => prec.dynamic(2, seq(
+      '^',
+      field('parameters', $.parameter_list),
     )),
 
     try_statement: $ => prec.right(seq(

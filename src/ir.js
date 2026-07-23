@@ -5,7 +5,7 @@
 // ---------------------------------------------------------------------------
 
 class IrNode {
-  constructor({ type, text = null, start = null, end = null, synthetic = false }) {
+  constructor({ type, text = null, start = null, end = null, synthetic = false, startPosition = null, endPosition = null }) {
     this.type = type;               // e.g. 'function_definition', 'whitespace', 'text'
     this.text = text;               // leaf text (null for branch nodes)
     this.start = start;             // original byte offset in source (null if synthetic)
@@ -14,6 +14,8 @@ class IrNode {
     this.children = [];             // IrNode[]
     this.parent = null;             // set when child is appended
     this.fields = {};               // named fields, mirrors tree-sitter childForFieldName
+    this.startPosition = startPosition;
+    this.endPosition = endPosition;
   }
 
   // -------------------------------------------------------------------------
@@ -140,6 +142,24 @@ class IrNode {
     };
   }
 
+  toDebugOutline(depth = 0) {
+    // Ignore raw punctuation and pure whitespace, but keep identifiers and operator tokens
+    if (this.type === 'extra' || this.type === 'whitespace') return null;
+
+    const indent = '  '.repeat(depth);
+    const startLoc = this.startPosition ? ` [L${this.startPosition.row + 1}:C${this.startPosition.column}]` : '';
+    const label = this.type;
+    const name = this.name || (this.text ? `: ${this.text.trim()}` : '');
+
+    const line = `${indent}├── ${label}${name}${startLoc}`;
+
+    const childLines = this.children
+      .map(c => c.toDebugOutline(depth + 1))
+      .filter(Boolean);
+
+    return [line, ...childLines].join('\n');
+  }
+
   // -------------------------------------------------------------------------
   // Internal
   // -------------------------------------------------------------------------
@@ -200,6 +220,8 @@ function irNodeFromTreeSitter(tsNode, source) {
     start: tsNode.startIndex,
     end: tsNode.endIndex,
     synthetic: false,
+    startPosition: tsNode.startPosition,
+    endPosition: tsNode.endPosition,
   });
 
   // For non-leaf nodes, walk through the byte range and insert
