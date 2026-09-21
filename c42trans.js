@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 'use strict';
+// node c42trans.js test.c -o test.c11
 
 const fs = require('fs');
 const path = require('path');
@@ -20,9 +21,10 @@ fs.writeFileSync('test.ast', document.root.toDebugOutline());
 const irDemo = require('./src/ir-demo');
 irDemo(document, source);
 
-const { extractPromiseGraph } = require('./src/promise-graph');
-const graph = extractPromiseGraph(document, c42Opts.visualization);
-fs.writeFileSync('test.dot', graph);
+const pg = require('./src/promise-graph');
+const graph = pg.extractPromiseGraph(document, c42Opts.visualization);
+fs.writeFileSync('test.json', JSON.stringify(graph, null, 2));
+fs.writeFileSync('test.dot', pg.renderPromiseGraphDot(graph));
 
 /*
 require('./src/print-ast')(tree, source);

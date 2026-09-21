@@ -250,3 +250,45 @@ async void my_async_function() {
   } while(*s != NULL && printf("%s\n", *s) && s++);
 }
 ```
+
+# Multithreaded C42
+In the event of shared mutable state, the following extensions are proposed
+## `cacheline static uint64_t processed_count;`
+```c
+#include <stdalign.h>
+
+typedef struct {
+    alignas(64) uint64_t value;
+    char _pad[64 - sizeof(uint64_t)];
+} _c42_cacheline_uint64_t;
+
+static _c42_cacheline_uint64_t processed_count_padded;
+#define processed_count (processed_count_padded.value)
+```
+
+## `shared int status_flag;`
+```c
+int status_flag;
+
+void check(void) {
+    if (*(volatile int *)&status_flag == 1) { ... }
+}
+```
+
+## `arena(pool) char scratch[2048];`
+```c
+char *scratch = (char *)c42_arena_alloc(arena, 2048, alignof(char));
+```
+
+## `numa_local static struct ring_buffer tx_queue;`
+```c
+static _Thread_local struct ring_buffer *tx_queue_ptr = NULL;
+
+struct ring_buffer* _c42_get_tx_queue(void) {
+    if (tx_queue_ptr == NULL) {
+        tx_queue_ptr = c42_numa_alloc_local(sizeof(struct ring_buffer));
+    }
+    return tx_queue_ptr;
+}
+#define tx_queue (*_c42_get_tx_queue())
+```
