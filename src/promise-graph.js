@@ -482,7 +482,7 @@ function extractPromiseGraph(document, options = {}) {
     let anonCounter = 1;
     closures.forEach(cl => {
       if (closureNames.has(cl)) return;
-      const nameNode = cl.children.find(c => c.type === 'identifier');
+      const nameNode = cl.field('name') || cl.children.find(c => c.type === 'identifier' && c !== cl.field('with'));
       if (nameNode) {
         closureNames.set(cl, `closure_${nameNode.textContent.trim()}_in_${parentName}`);
       } else {
@@ -585,7 +585,42 @@ function extractPromiseGraph(document, options = {}) {
     return id;
   }
 
+  // Map function parameter names to closures passed into them at call sites (e.g. callback -> closure_foo_in_my_async_function)
+  const paramClosureTargets = new Map(); // `${fnName}:${paramName}` -> closureContextName
+  const fnParamNames = new Map(); // fnName -> string[]
+  funcDefs.forEach(fn => {
+    const fnName = findIdentifier(fn);
+    if (!fnName) return;
+    const decl = fn.field('declarator');
+    const paramList = decl && decl.querySelector(n => n.type === 'parameter_list');
+    if (!paramList) return;
+    const names = [];
+    for (const child of paramList.children) {
+      if (child.type === 'parameter_declaration') {
+        const ids = child.querySelectorAll(n => n.type === 'identifier');
+        names.push(ids.length > 0 ? ids[0].textContent.trim() : null);
+      }
+    }
+    fnParamNames.set(fnName, names);
+  });
+
   const callExpressions = document.getElementsByType('call_expression');
+  callExpressions.forEach(call => {
+    const targetNode = call.children.find(c => c.type === 'identifier' || c.type === 'string_literal');
+    if (!targetNode) return;
+    const targetName = targetNode.textContent.trim();
+    if (fnParamNames.has(targetName)) {
+      const paramNames = fnParamNames.get(targetName);
+      const argList = call.querySelector(n => n.type === 'argument_list');
+      const argNodes = argList ? argList.children.filter(c => !['(', ')', ',', 'whitespace', 'extra'].includes(c.type)) : [];
+      argNodes.forEach((argNode, idx) => {
+        const cl = argNode.type === 'closure_expression' ? argNode : (argNode.querySelector && argNode.querySelector(n => n.type === 'closure_expression'));
+        if (cl && paramNames[idx] && closureNames.has(cl)) {
+          paramClosureTargets.set(`${targetName}:${paramNames[idx]}`, closureNames.get(cl));
+        }
+      });
+    }
+  });
   callExpressions.forEach(call => {
     const targetNode = call.children.find(c => c.type === 'identifier' || c.type === 'string_literal');
     if (!targetNode) return;
@@ -624,6 +659,16 @@ function extractPromiseGraph(document, options = {}) {
     if (promiseScopes.has(key)) {
       return promiseScopes.get(key);
     }
+
+    // If inside a closure, check the enclosing function's promise scope
+    const enclosingFn = node && node.closest && node.closest('function_definition');
+    if (enclosingFn) {
+      const fnName = findIdentifier(enclosingFn);
+      if (fnName && promiseScopes.has(`${fnName}:${cleanName}`)) {
+        return promiseScopes.get(`${fnName}:${cleanName}`);
+      }
+    }
+
     return `${ctxName}\n${cleanName}`;
   }
 
@@ -686,6 +731,18 @@ function extractPromiseGraph(document, options = {}) {
     if (knownFunctions.has(targetName)) {
       const calleeId = addContext(targetName);
       addEdge(ctxId, calleeId, 'calls');
+    } else {
+      const enclosingFn = call.closest('function_definition');
+      const enclosingFnName = enclosingFn ? findIdentifier(enclosingFn) : null;
+      if (enclosingFnName && paramClosureTargets.has(`${enclosingFnName}:${targetName}`)) {
+        const closureCtxName = paramClosureTargets.get(`${enclosingFnName}:${targetName}`);
+        addEdge(ctxId, addContext(closureCtxName), `calls (${targetName})`);
+      } else if (targetName === 'signal') {
+        const cl = call.querySelector && call.querySelector(n => n.type === 'closure_expression');
+        if (cl && closureNames.has(cl)) {
+          addEdge(ctxId, addContext(closureNames.get(cl)), 'installs handler');
+        }
+      }
     }
     
     const argList = call.querySelector(n => n.type === 'argument_list');
@@ -741,6 +798,9 @@ function extractPromiseGraph(document, options = {}) {
         const closureExpr = argNode.type === 'closure_expression' ? argNode : (argNode.querySelector ? argNode.querySelector(n => n.type === 'closure_expression') : null);
         if (closureExpr) {
           subCtxId = addContext(getContextName(closureExpr));
+          if (subCtxId !== ctxId) {
+            addEdge(ctxId, subCtxId, 'registers (promise_then)');
+          }
           break;
         }
       }
@@ -785,10 +845,31 @@ function extractPromiseGraph(document, options = {}) {
           });
         }
       } else if (targetName === 'CLOSURE_CANCEL') {
-        const paramList = call.querySelector(n => n.type === 'parameter_list');
-        const paramArg = paramList ? paramList.textContent.replace(/[()]/g, '').trim() : 'closure';
-        const pId = addPromise(resolvePromise(paramArg, awaitNode));
-        addEdge(ctxId, pId, 'canceled');
+        const argList = call.querySelector(n => n.type === 'argument_list' || n.type === 'parameter_list');
+        const paramArg = argList ? argList.textContent.replace(/[()]/g, '').trim() : 'closure';
+        // Resolve `callbacker_read_context.closureStorageAllocation` to `callbacker_read_closure_1` if applicable
+        let targetClosureCtxId = null;
+        if (paramArg.includes('.')) {
+          const ctxVarName = paramArg.split('.')[0].trim();
+          const enclosingFn = awaitNode.closest('function_definition');
+          if (enclosingFn) {
+            const decls = enclosingFn.getElementsByType('declaration');
+            for (const d of decls) {
+              if (d.textContent.includes(ctxVarName)) {
+                const match = d.textContent.match(/SuspendContext_([a-zA-Z0-9_]+)/);
+                if (match && contexts.has(safeId(`${match[1]}_closure_1`))) {
+                  targetClosureCtxId = safeId(`${match[1]}_closure_1`);
+                }
+              }
+            }
+          }
+        }
+        if (targetClosureCtxId) {
+          addEdge(ctxId, targetClosureCtxId, 'canceled (CLOSURE_CANCEL)');
+        } else {
+          const pId = addPromise(resolvePromise(paramArg, awaitNode));
+          addEdge(ctxId, pId, 'canceled');
+        }
       } else {
         const pId = addPromise(resolvePromise(call.textContent.trim(), awaitNode));
         const isCatchingReject = awaitNode.textContent.toLowerCase().includes('reject') || call.textContent.toLowerCase().includes('catch');
@@ -825,11 +906,11 @@ function extractPromiseGraph(document, options = {}) {
  */
 function renderPromiseGraphDot(graphData) {
   let dot = 'digraph PromiseStateMachine {\n';
-  dot += '  layout=neato;\n';
+  dot += '  rankdir=TB;\n';
   dot += '  overlap=false;\n';
   dot += '  splines=true;\n';
-  dot += '  sep=0.6;\n';
-  dot += '  esep=0.3;\n';
+  dot += '  nodesep=0.5;\n';
+  dot += '  ranksep=0.6;\n';
   dot += '  node [fontname="Helvetica"];\n';
   dot += '  edge [fontname="Helvetica", fontsize=10];\n\n';
 
