@@ -18,6 +18,11 @@ const argv = yargs(hideBin(process.argv))
     describe: 'The C output file destination',
     type: 'string',
   })
+  .option('c42-policy', {
+    alias: 'options',
+    describe: 'Path to c42.json policy file',
+    type: 'string',
+  })
   .fail((msg, err, yargs) => {
     // Custom error handling matching your original output style
     if (msg) console.error(`Error: ${msg}\n`);
@@ -28,13 +33,15 @@ const argv = yargs(hideBin(process.argv))
 
 // Validate input file existence
 if (!fs.existsSync(argv.input_file)) {
-  console.error(`Error: Input file "${inputFile}" does not exist.`);
+  console.error(`Error: Input file "${argv.input_file}" does not exist.`);
   process.exit(1);
 }
 
 // Load configurations
 let c42Opts = { pointer: { nonNullSyntax: false, nullableSyntax: false } };
-const configPath = path.join(process.cwd(), 'c42.json');
+const configPath = argv['c42-policy']
+  ? path.resolve(process.cwd(), argv['c42-policy'])
+  : path.join(process.cwd(), 'c42.json');
 
 if (fs.existsSync(configPath)) {
   try {

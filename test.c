@@ -38,7 +38,8 @@
    primitives into macros and declaration hoisting
 */
 
-#include <cstdint>
+#include <stdint.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <aio.h>
 #include <signal.h>
@@ -60,7 +61,7 @@ void install_signal_handler(){
   signal(SIGUSR1, ^{signal_repeated_promise.status = TO_BE_PINGED;});
 }
 
-void callbacker_read(char*! path, void*! buf, size_t bufSz, size_t offset, (*callback)(int, char*)) {
+void callbacker_read(char*! path, void*! buf, size_t bufSz, size_t offset, void (*callback)(int, char*)) {
   _context FILE *ifp = fopen(path, "r");
   if(ifp == NULL){
     callback(0,"fopen failed");
@@ -133,9 +134,9 @@ Timer timers[8];
  * use glib or libuv or whatever */
 void basic_usleep_event_loop(Promise* eventLoopWaitsForThese){
   do {
-    if(promise_to_ping_on_signal.status == TO_BE_PINGED){
+    if(signal_repeated_promise.status == TO_BE_PINGED){
       /* n.b. promise_ping needs to have a do loop to set PINGED, then check TO_BE_PINGED after execution, then return to PENDING */
-      promise_ping(promise_to_ping_on_signal);
+      promise_ping(&signal_repeated_promise);
     }
     bool pings;
     Timeval now;
@@ -154,9 +155,9 @@ void basic_usleep_event_loop(Promise* eventLoopWaitsForThese){
         }
       }
     } while(pings);
-    uint32 waketime = 1_000_000;
+    uint32_t waketime = 1_000_000;
     for(Timer* t = timers; t < timers + 8 && t->toPing != NULL; t++){
-      uint32 t_waketime = (t->expiry - now)/1000;
+      uint32_t t_waketime = (t->expiry - now)/1000;
       waketime = MIN(waketime, t_waketime);
     }
     // PROMISE_MACHINE_RUN_PENDING_PROMISES goes here for deferred execution
@@ -201,7 +202,7 @@ async void my_async_function() {
    * Closure_my_function_1 instead of Closure_my_function_foo */
   _context NEXT_CLOSURE_STORAGE closureStorageAllocation;
   with(callbacker_read_context)
-    ^() cancel_handle = callbacker_read("test.txt", buf, bufSz, 0, with(closureStorageAllocation)^foo(int bytes, char* error){
+    callbacker_read("test.txt", buf, bufSz, 0, with(closureStorageAllocation)^foo(int bytes, char* error){
       _context int nread = bytes;
       bytes > 0 ? promise_resolve(p, NULL) : promise_reject(p, error);
     });
@@ -225,12 +226,14 @@ async void my_async_function() {
        * when the SuspendContext is pinged */
       await PROMISE_RACE(p,timeout);
     } catch (e) {
-      /* magical printf flags for error handling: %er for code message, %erb for code message backtrace if backtrace is available like c42.errorPolicy.fulltrace */
-      printf("Error reading file: %erb\n", e);
-      /* direct a CancellationException to the closures catch{} block */
-      await CLOSURE_CANCEL(callbacker_read_context.closureStorageAllocation);
-      free(buf);
-      exit(2);
+      if (*s == NULL) {
+        /* magical printf flags for error handling: %er for code message, %erb for code message backtrace if backtrace is available like c42.errorPolicy.fulltrace */
+        printf("Error reading file: %erb\n", e);
+        /* direct a CancellationException to the closures catch{} block */
+        await CLOSURE_CANCEL(callbacker_read_context.closureStorageAllocation);
+        free(buf);
+        exit(2);
+      }
     } else {
       /* we can read from our named closure */
       printf("Read %d bytes: %s\n", foo->nread, buf);

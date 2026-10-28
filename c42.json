@@ -4,6 +4,9 @@
     "nonNullRuntimeAssert": true,
     "nullableSyntax": false
   },
+  "number": {
+    "stripUnderscores": true
+  },
   "string": {
     "ops": "glib",
     "allocationPolicy": "glib"
@@ -14,12 +17,12 @@
     "multiFunctionSplit": true,
     "switchBasedStateMachine": false,
     "markedContextVars": true,
-    "tryCatch": false,
+    "tryCatch": true,
     "tryCatchFinally": true,
-    "tryCatchElse": false,
+    "tryCatchElse": true,
     "exceptionBubbling": false,
     "unhandledRejectionCrash": false,
-    "appleBlocks": false,
+    "appleBlocks": true,
     "backend": "heapless"
   }
 }

@@ -26,17 +26,6 @@ const graph = pg.extractPromiseGraph(document, c42Opts.visualization);
 fs.writeFileSync('test.json', JSON.stringify(graph, null, 2));
 fs.writeFileSync('test.dot', pg.renderPromiseGraphDot(graph));
 
-/*
-require('./src/print-ast')(tree, source);
-const ops = require('./src/ast-transform');
-const {forEachNode, applyEdits} = require('./src/util');
-const {hoistClosures} = require('./src/hoist-closures');
-
-forEachNode(root, ops.extractAsyncFunctionMetadata);
-
-{
-  const {hoisted, edits} = hoistClosures(root, source);
-  console.log(applyEdits(source, hoisted, edits));
-  fs.writeFileSync(argv.o, applyEdits(source, hoisted, edits));
-}
-*/
+const { transpileDocument } = require('./src/transpile');
+const transpiled = transpileDocument(document, c42Opts);
+fs.writeFileSync(argv.o, transpiled);

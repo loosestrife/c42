@@ -45,7 +45,7 @@
     "prebuildify": "^6.0.1"
   },
   "peerDependencies": {
-    "tree-sitter": "^0.22.4"
+    "tree-sitter": "*"
   },
   "peerDependenciesMeta": {
     "tree-sitter": {
